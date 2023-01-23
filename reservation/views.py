@@ -1,3 +1,4 @@
+import imp
 from django.shortcuts import render
 from reservation.models import *
 from .serializers import UserRegistrationSerializer
@@ -7,13 +8,15 @@ from rest_framework.response import Response
 from . serializers import *
 import datetime
 from datetime import datetime
+from .tasks import *
+import email
+from rest_framework import permissions
 
 # Create your views here.
 
 #0) user
 class UserRegistrationView(APIView):
     serializer_class = UserRegistrationSerializer
-    # permission_classes = (AllowAny, )
     def get(self,request,*args,**kwargs):
         user11=User.objects.all()
         serializer=UserRegistrationSerializer(user11,many=1)
@@ -61,7 +64,7 @@ class UserdetailView(APIView):
 
 #1) view for roomtype [get and post]
 class RoomtypeView(APIView):
-    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     def get(self,request,*args,**kwargs):
         roomtype1=Roomtype.objects.all()
         serializer=Roomtype_serializer(roomtype1,many=1)
@@ -79,7 +82,7 @@ class RoomtypeView(APIView):
 
 #1.1) other crud operations   
 class RoomtypedetailView(APIView):
-    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     def get_object(self, pk):
         try:
             return Roomtype.objects.get(pk=pk)
@@ -107,7 +110,7 @@ class RoomtypedetailView(APIView):
 
 # 2) view for rooms [get and post]
 class RoomsView(APIView):
-    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     def get(self,request,*args,**kwargs):
         rooms1=Rooms.objects.all()
         serializer=Rooms_serializer(rooms1,many=1)
@@ -122,6 +125,7 @@ class RoomsView(APIView):
 
 #2.1) other crud operations
 class Roomdetailview(APIView):
+    permission_classes = [permissions.IsAuthenticated]
     def get_object(self,pk):
         try:
             return Rooms.objects.get(pk=pk)
@@ -146,96 +150,51 @@ class Roomdetailview(APIView):
 
 #3) Booking
 class BookingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
     def get(self,request,*args,**kwargs):
         booking1=Booking.objects.all()
         serializer=Booking_serializer(booking1,many=1)
         return Response(serializer.data)
 
+    
     def post(self,request,*args,**kwargs):
-        try:
-            serializer=Booking_serializer(data=request.data) 
-            room_id=request.data["room"]
-            seats=Rooms.objects.get(id=room_id)
-            # rs = kwargs.get("id") 
-            # instance = Booking.objects.get(id=rs)
-            c_in = request.data["check_in"]
-            c_out = request.data["check_out"]
-            rm_no= seats.roomno
-            print(rm_no)
-            print(c_in)
-            print(c_out)
-            
-            print("hello:",seats.room_type.available_rooms)
-            # msg1 = f"Your booking for room number{rm_no}from {c_in} to{c_out} has been reserved."
-            # print(msg1)
-            response={"status":status.HTTP_400_BAD_REQUEST,"message":"Room Reservation Failed"}
-            if seats.room_type.available_rooms<=seats.room_type.total_rooms and seats.room_type.available_rooms!=0:
-                id = request.data["user"]
-                user_email = User.objects.get(id=id)
-                email = user_email.email
-                if serializer.is_valid():
-                    print("hai")
-                    serializer.save()
-                    seats.room_type.available_rooms= seats.room_type.available_rooms-1
-                    print("new seats",seats.room_type.available_rooms)
-                    msg1 = f"Your booking for room number{rm_no}from {c_in} to{c_out} has been reserved."
-                    print(msg1)
-                    seats.room_type.save()
-                    send_mail_task.delay(email,msg)
-                    response["status"] = status.HTTP_201_CREATED
-                    response["message"] = "Reservation Successfull"
-                    response["data"] = serializer.data
-                    return Response(response, status=status.HTTP_200_OK)
-                else:
-                    return Response(response, status=status.HTTP_400_BAD_REQUEST)
-                    # return Response(serializer.data, status=status.HTTP_201_CREATED)
-            else:
-                return Response({"msg": "Rooms are unavailable"})
-        except Exception:
-            return Response(response,status=status.HTTP_400_BAD_REQUEST)     
-
-
-    # def post(self,request,*args,**kwargs):
-    #     try:
-    #         serializer=Booking_serializer(data=request.data) 
-    #         room_id=request.data["room"]
-    #         seats=Rooms.objects.get(id=room_id)
-    #         # instance = Booking.objects.get(id=rs)      #for getting date
-    #         # check_in1=instance.check_in
-    #         # check_in2=instance.check_out
-    #         print("check1:")
-    #         print("hello12")
-    #         print("hello:",seats.room_type.available_rooms)
-    #         response={"status":status.HTTP_400_BAD_REQUEST,"message":"Room Reservation Failed"}
-    #         if seats.room_type.available_rooms<=seats.room_type.total_rooms and seats.room_type.available_rooms!=0:
-    #             id = request.data["user"]
-    #             user_email = User.objects.get(id=id)
-    #             email = user_email.email
-    #             if serializer.is_valid():
-    #                 print("hai")
-    #                 serializer.save()
-    #                 seats.room_type.available_rooms= seats.room_type.available_rooms-1
-    #                 print("new seats",seats.room_type.available_rooms)
-    #                 #for celery
-    #                 # msg1 = f"Your booking for hotel from {place} to {to} on date {date} has been reserved."
-
-
-    #                 seats.room_type.save()
-    #                 response["status"] = status.HTTP_201_CREATED
-    #                 response["message"] = "Reservation Successfull"
-    #                 response["data"] = serializer.data
-    #                 return Response(response, status=status.HTTP_200_OK)
-    #             else:
-    #                 return Response(response, status=status.HTTP_400_BAD_REQUEST)
-    #                 # return Response(serializer.data, status=status.HTTP_201_CREATED)
-    #         else:
-    #             return Response({"msg": "Rooms are unavailable"})
-    #     except Exception:
-    #         return Response(response,status=status.HTTP_400_BAD_REQUEST)  
+        serializer=Booking_serializer(data=request.data) 
+        room_id=request.data["room"]
+        seats=Rooms.objects.get(id=room_id)
+        c_in = request.data["check_in"]
+        c_out = request.data["check_out"]
+        rm_no= seats.roomno
+        print(rm_no)
+        print(c_in)
+        print(c_out)
+        id = request.data["user"]
+        user_email = User.objects.get(id=id)
+        email = user_email.email
+        print("hello:",seats.room_type.available_rooms)
+        msg1 = f"Your booking for room number {rm_no} from {c_in} to{c_out} has been reserved."
+        print(msg1)
+        if seats.room_type.available_rooms<=seats.room_type.total_rooms and seats.room_type.available_rooms!=0:
+            if serializer.is_valid():
+                res_object= serializer.save()
+                print(res_object)
+                res_object.total_amount=res_object.get_total()
+                print(res_object.total_amount)
+                res_object.save()
+                seats.room_type.available_rooms= seats.room_type.available_rooms-1
+                print("new seats",seats.room_type.available_rooms)
+                msg1 = f"Your booking for room number{rm_no}from {c_in} to{c_out} has been reserved."
+                print(msg1)
+                seats.room_type.save()
+                send_mail_task.delay(email,msg1)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
+        return Response({"msg": "Rooms are unavailable"})
+        
 
 
 
 class Bookingdetailview(APIView):
+    permission_classes = [permissions.IsAuthenticated]
     # def get_object(self,pk):
     #     try:
     #         return Booking.objects.get(pk=pk)
@@ -251,41 +210,30 @@ class Bookingdetailview(APIView):
     def put(self,request,*args,**kwargs):
         rs = kwargs.get("id") 
         print(rs)
-        print("helooo")
         room_id=request.data["room"]
         print(room_id)
         seats=Rooms.objects.get(id=room_id)
         instance = Booking.objects.get(id=rs)
         print(instance)
+        c_in = request.data["check_in"]
+        c_out = request.data["check_out"]
+        rm_no= seats.roomno
+        id = request.data["user"]
+        user_email = User.objects.get(id=id)
+        email = user_email.email
         serializer= Booking_serializer(data=request.data, instance=instance)
         if serializer.is_valid():
             print("hai5")
             sts = serializer.validated_data.get("booking_sts")
             print(sts)
-            print("hai 6:",instance.check_in)
-            price1=seats.room_type.price
-
-            #total_price calculations
-            check_in1=instance.check_in
-            check_in2=instance.check_out
-            print("check1:",check_in1)
-            checkin_object1 = datetime.strptime(instance.check_in, '%Y-%m-%d %H:%M:%S')
-            print("aaa:",checkin_object1)
-            # YY-MM-DD H:MI:SS
-            checkout_object2 = datetime.strptime(check_in2, "%Y-%m-%d %H:%M:%S")
-            s1=int(checkin_object1.day)
-            print("dateeeee:",s1)
-            s2=checkout_object2.day
-            days1=abs(s1-s2)
-            instance.total_amount=days1*price1
-            print("total price:",instance.total_amount)
-
             instance.booking_sts = sts
             instance.save()
-            print("hai7")
             if sts=="CANCELLD":
                 seats.room_type.available_rooms = seats.room_type.available_rooms+1
+                msg2 = f"Your booking for room number{rm_no}from {c_in} to{c_out} has been cancelled."
+                print(msg2)
                 seats.room_type.save()
+                send_mail_cancel_task.delay(email,msg2)
             return Response(serializer.data)
         return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 

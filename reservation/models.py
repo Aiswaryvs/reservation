@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import PermissionsMixin,AbstractBaseUser
 from django.utils import timezone
 from .managers import CustomUserManager
+from datetime import datetime
 
 # Create your models here.
 #1) model for role settings
@@ -66,20 +67,23 @@ class Roomtype(models.Model):
     
     def __str__(self):
         return self.room_type
+    class Meta:
+        unique_together=("room_type",)
+
 
 #3) model for rooms
 class Rooms(models.Model):
     room_type=models.ForeignKey(Roomtype,on_delete=models.CASCADE)
     roomno=models.CharField(max_length=50)
     def __str__(self):
-        return self.room_no
+        return self.roomno
 
 #4) model for Booking
 class Booking(models.Model):
     user=models.ForeignKey(User,on_delete=models.CASCADE)
     room=models.ForeignKey(Rooms,on_delete=models.CASCADE)
-    check_in=models.DateTimeField()
-    check_out=models.DateTimeField()
+    check_in=models.DateField()
+    check_out=models.DateField()
     total_amount = models.FloatField(blank=True,null=True)
     booking_status = (
         ('BOOKED','BOOKED'),
@@ -88,18 +92,19 @@ class Booking(models.Model):
 
     class Meta:
         unique_together=("user","room")
-    @property
+
     def date_diff(self):
-        return (self.check_in - self.check_out).days
+        date_format = "%Y-%m-%d"
 
-    def total_price(self):
-        instance = self.total_amount.all()
-        print(instance)
-        sum = 0
-        for i in instance:
-            # print(i.price)
-            sum += i.price
-            
-        return sum
+        a = datetime.strptime(str(self.check_in),date_format)
+        b = datetime.strptime(str(self.check_out),date_format)
+        dt = b - a
+        print (dt.days)
+        return dt.days
 
-
+    def get_total(self):
+        rm =self.room
+        print(rm)
+        total_amount=0
+        total_amount+=rm.room_type.price*(self.date_diff())
+        return total_amount

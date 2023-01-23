@@ -20,14 +20,16 @@ from django.contrib.auth.base_user import BaseUserManager
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, password=None):
+    def create_user(self, email,first_name ,role,last_name,password=None):
         
         if not email:
             raise ValueError('User must have an email address')
 
         user = self.model(
             email=self.normalize_email(email),
-            # first_name=first_name,
+            first_name=first_name,
+            role=role,
+            last_name=last_name
             # address=address,
             # phone=phone
         )
